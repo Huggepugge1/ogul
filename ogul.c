@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 struct instruction {
     int id;
@@ -20,12 +21,9 @@ const char LENEQU[] = "len: EQU $ - ";
 const int DEAFAULT_LEN = 10000;
 const int STRING_LEN = 825;
 
-void data(char strings[DEAFAULT_LEN][DEAFAULT_LEN], size_t stringNumber, FILE *f) {
-    fprintf(f, "section .data\n");
-    for (size_t i = 0; i < stringNumber; i++) {
-        fprintf(f, "   %s%d%s \"%s\", 10\n", STRING, i, DB, strings[i]);
-        fprintf(f, "   %s%d%s%s%d\n", STRING, i, LENEQU, STRING, i);
-    }
+void data(int stringNumber, char str[], FILE *f) {
+    fprintf(f, "   %s%d%s \"%s\", 10\n", STRING, stringNumber, DB, str);
+    fprintf(f, "   %s%d%s%s%d\n", STRING, stringNumber, LENEQU, STRING, stringNumber);
 }
 
 void printString(char strings[DEAFAULT_LEN][DEAFAULT_LEN], int stringNumber, int ip, FILE *f) {
@@ -39,7 +37,7 @@ void printString(char strings[DEAFAULT_LEN][DEAFAULT_LEN], int stringNumber, int
             , ip, STRING, stringNumber, STRING, stringNumber);
 }
 
-void exitProgram(int value, FILE *f, int ip) {
+void exitProgram(int value, int ip, FILE *f) {
     fprintf(f, 
             "ip%d:\n"
             "   mov rax, 60\n"
@@ -47,17 +45,65 @@ void exitProgram(int value, FILE *f, int ip) {
             "   syscall\n", ip, value);
 }
 
+struct instruction parseToken(char *token, int lineNum, int *stringNumber, int ip, FILE *f) {
+    if (strncmp(token, "write", strlen("write"))) {
+        char str[STRING_LEN];
+        bool found = false;
+        for (size_t i = 6; i < sizeof(token); i++) {
+            if (found) {
+                if (!((size_t)token + i == '"')) {
+                str[i] = (size_t)token + i;    
+                } else {
+                    data(*stringNumber, str, f);
+                    struct instruction ins = {
+                        .id = 1,
+                        .value = *stringNumber,
+                        .ip = ip
+                    };
+                    *stringNumber++;
+                    return ins;
+                }
+            } else {
+                if ((size_t)token + i == '"') {
+                    found = true;
+                }
+            }
+        }
+    } else {
+        printf("Not a valid command: %s %s", token, lineNum);
+        exit(1);
+    }
+}
+
 struct instruction * parseFile(char fp[]) {
     FILE *f;
-    if (!f == fopen(fp, "r")) {
+    
+    if (!(f = fopen(fp, "r"))) {
         printf("File %s does not exist", fp);
         exit(1);
     }
-    char buf[STRING_LEN];
+    
+    struct instruction instructions[DEAFAULT_LEN];
+    
+    int    ip = 0;
+    
+    char   *fileToken = "";
+    size_t  fileTokenSize = STRING_LEN;
+    ssize_t read;
 
-    while ((fscanf(f, "%s", buf)) == 1) {
-        printf("%s\n", buf);
-    }
+    int lineNum = 0;
+    int stringNum = 0;
+
+    read = (ssize_t)getline(&fileToken, &fileTokenSize, f);
+
+    /* while ((read = (ssize_t)getline(&buf, &bufsize, f)) == 1) { */
+    /*     char *token = strtok(buf, ";"); */
+    /*     instructions[ip] = parseToken(token, lineNum, &stringNum, ip, f); */
+    /*     while (*token = strtok(NULL, " ") != NULL) { */
+    /*         parseToken(token, lineNum, &stringNum, ip, f); */
+    /*     } */
+    /*     lineNum++; */
+    /* } */    
     
     struct instruction * ptr;
 
@@ -65,8 +111,8 @@ struct instruction * parseFile(char fp[]) {
 }
 
 int main() {
-    char   strings[DEAFAULT_LEN][STRING_LEN];
-    int stringNumber = 1;
+    char strings[DEAFAULT_LEN][STRING_LEN];
+    int  stringNumber = 1;
     
     struct instruction instructions[DEAFAULT_LEN];
 
@@ -87,14 +133,14 @@ int main() {
         "   jmp ip1\n";
 
     FILE *f = fopen("./out.asm", "w");
-    data(strings, stringNumber, f);
+    fprintf(f, "section .data");
     fprintf(f, "%s", start);
 
     int ip = 0;
     while (instructions[ip].ip != 0) {
         struct instruction ins = instructions[ip];
         if (ins.id == EXIT) {
-            exitProgram(ins.value, f, ins.ip);
+            exitProgram(ins.value, ins.ip, f);
         
         } else if (ins.id == WRITE) {
             printString(strings, ins.value, ins.ip, f);
@@ -105,6 +151,10 @@ int main() {
         }
         ip++;
     }
+
+    char* str;
+    str = (char *)malloc(50*sizeof(char));
+
     fclose(f);
     parseFile("foo.ogul");
     return 0;

@@ -1,7 +1,4 @@
 section .data
-   string0: db  "Hello, World!", 10
-   string0len: EQU $ - string0
-
 section .text
 global _start
 _start:
