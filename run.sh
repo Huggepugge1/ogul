@@ -1,6 +1,0 @@
-gcc ogul.c -o ogul
-./ogul
-nasm -f elf64 -o out.o out.asm
-ld -s -o out out.o
-./out
-rm out.o out.asm ogul
