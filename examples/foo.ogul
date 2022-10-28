@@ -1,8 +1,7 @@
-hello = "Hello World!"
-
-exit_code = 1
-
-exit exit_code
+hello =str "Hello, World!\n"
 
 write hello
+
+hello =str "hELLO, wORLD!\n"
+
 write hello
