@@ -6,6 +6,7 @@ pub const EXIT_TOKEN:  &str = "exit";
 pub const WRITE_TOKEN: &str = "write";
 pub const READ_TOKEN:  &str = "read";
 
-pub const INSTRUCTIONS:  [&str; 1] = [
+pub const INSTRUCTIONS:  [&str; 2] = [
+    "exit",
     "write"
 ];

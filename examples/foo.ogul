@@ -1,0 +1,8 @@
+hello = "Hello World!"
+
+exit_code = 1
+
+exit exit_code
+
+write hello
+write hello
