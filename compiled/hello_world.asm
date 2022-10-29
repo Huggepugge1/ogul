@@ -65,7 +65,7 @@ stop:
     call exit
 
 section .data
-    str0: db "Hello, World!", 10""
+    str0: db "", 10, "Hello, World!", 10, "", 10, ""
     len0: EQU $- str0
 
 section .bss

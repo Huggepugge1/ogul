@@ -65,10 +65,10 @@ stop:
     call exit
 
 section .data
-    str0: db "Hello, World!", 10""
+    str0: db "Hello, World!", 10"", 10"", 10"Hello", 10""
     len0: EQU $- str0
 
 section .bss
     counter: resq 1
-    exit_code: resq 1
     hello: resb 10000
+    exit_code: resq 1

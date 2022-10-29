@@ -211,8 +211,8 @@ fn parse_file(path: &str) -> Result<(Vec<Instruction>, HashMap<String, i32>, Vec
 
     let mut ip:   i32 = 0;
     let mut sp:   i32 = 0;
-    let mut line: i32 = 0;
-    let mut pos:  i32 = 0;
+    let mut line: i32 = 1;
+    let mut pos:  i32 = 1;
     
     let mut string: bool = false;
     let mut token: String = String::new();
@@ -228,7 +228,7 @@ fn parse_file(path: &str) -> Result<(Vec<Instruction>, HashMap<String, i32>, Vec
         if byte == 34 {
             if string {
                 string = false;
-                tokens.push((token.replace("\n", "\", 10\"").replace("\\n", "\", 10\""), types::STR, line, pos));
+                tokens.push((token.replace("\n", "\", 10, \"").replace("\\n", "\", 10, \""), types::STR, line, pos));
                 token = String::new();
             } else {
                 string = true;
@@ -237,7 +237,7 @@ fn parse_file(path: &str) -> Result<(Vec<Instruction>, HashMap<String, i32>, Vec
         } else if byte == 32 || byte == 10 {
             if byte == 10 {
                 line += 1;
-                pos = 0;
+                pos = 1;
             }
             if string {
                 token.push(byte as char);
