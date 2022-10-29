@@ -10,7 +10,7 @@ pub const READ_TOKEN:         &str = "read";
 pub const ALLOCATE_INT_TOKEN: &str = "=int";
 pub const ALLOCATE_STR_TOKEN: &str = "=str";
 
-pub const INSTRUCTIONS: [&str; 4] = [
+pub const INTRINSICS: [&str; 4] = [
     "exit",
     "write",
     "=int",

@@ -1,7 +1,0 @@
-hello =str "Hello, World!\n"
-
-write hello
-
-hello =str "hELLO, wORLD!\n"
-
-write hello

@@ -54,16 +54,11 @@ ins1:
     call write
 
 ins2:
-    mov qword [counter], 0
-    push hello
-    push str1
-    push len1
-    call allocate_str
+    mov qword [exit_code], 0
 
 ins3:
-    push hello
-    push len1
-    call write
+    push qword [exit_code]
+    call exit
 
 stop:
     push 0
@@ -73,9 +68,7 @@ section .data
     str0: db "Hello, World!", 10""
     len0: EQU $- str0
 
-    str1: db "hELLO, wORLD!", 10""
-    len1: EQU $- str1
-
 section .bss
     counter: resq 1
+    exit_code: resq 1
     hello: resb 10000
