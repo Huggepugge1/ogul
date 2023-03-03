@@ -76,26 +76,6 @@ fn lexer(path: &str) -> Vec<Token> {
             pos[2] += token.len();
             token = String::new();
             
-        } else if c == '+' {
-            tokens.push(Token::new(OpType::Plus, token.clone(), [pos[1], pos[2]]));
-            pos[0] += 1;
-            pos[2] += 1;
-
-        } else if c == '-' {
-            tokens.push(Token::new(OpType::Minus, token.clone(), [pos[1], pos[2]]));
-            pos[0] += 1;
-            pos[2] += 1;
-
-        } else if c == '{' {
-            tokens.push(Token::new(OpType::BlockStart, token.clone(), [pos[1], pos[2]]));
-            pos[0] += 1;
-            pos[2] += 1;
-
-        } else if c == '}' {
-            tokens.push(Token::new(OpType::BlockEnd, token.clone(), [pos[1], pos[2]]));
-            pos[0] += 1;
-            pos[2] += 1;
-
         } else if !c.is_whitespace() {
             while !c.is_whitespace() {
                 token += &c.to_string();
@@ -103,9 +83,13 @@ fn lexer(path: &str) -> Vec<Token> {
                 c = content.chars().nth(pos[0]).unwrap();
             }
             match &token[..] {
+                "+"    => tokens.push(Token::new(OpType::Plus, token.clone(), [pos[1], pos[2]])),
+                "-"    => tokens.push(Token::new(OpType::Minus, token.clone(), [pos[1], pos[2]])),
                 "dump" => tokens.push(Token::new(OpType::Dump, token.clone(), [pos[1], pos[2]])),
                 "jmp"  => tokens.push(Token::new(OpType::Jump, token.clone(), [pos[1], pos[2]])),
                 "exit" => tokens.push(Token::new(OpType::Exit, token.clone(), [pos[1], pos[2]])),
+                "{"    => tokens.push(Token::new(OpType::BlockStart, token.clone(), [pos[1], pos[2]])),
+                "}"    => tokens.push(Token::new(OpType::BlockEnd, token.clone(), [pos[1], pos[2]])),
                 "if"   => (),
                 "=="   => tokens.push(Token::new(OpType::IsEq, token.clone(), [pos[1], pos[2]])),
                 "<"    => tokens.push(Token::new(OpType::LT, token.clone(), [pos[1], pos[2]])),
