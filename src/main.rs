@@ -2,6 +2,7 @@ use std::fs::OpenOptions;
 use std::io::Result;
 use std::process::{exit, Command};
 use std::io::Write;
+use std::env;
 
 #[derive(Debug)]
 #[derive(PartialEq)]
@@ -12,6 +13,7 @@ enum OpType {
     Minus,
     Dump,
     Jump,
+    Exit,
 }
 
 #[derive(Debug)]
@@ -88,6 +90,7 @@ fn lexer(path: &str) -> Vec<Token> {
             match &token[..] {
                 "dump" => tokens.push(Token::new(OpType::Dump, token.clone(), [pos[1], pos[2]])),
                 "jmp"  => tokens.push(Token::new(OpType::Jump, token.clone(), [pos[1], pos[2]])),
+                "exit" => tokens.push(Token::new(OpType::Exit, token.clone(), [pos[1], pos[2]])),
                 _      => {
                     eprint!("{token} not defined");
                     exit(1);
@@ -128,7 +131,8 @@ fn parse(tokens: Vec<Token>) -> Vec<Op> {
             OpType::Plus    => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::Minus   => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::Dump    => Op::new(token.typ, 0, String::new(), token.pos[0]),
-            OpType::Jump    => Op::new(token.typ, val, String::new(), token.pos[0])
+            OpType::Jump    => Op::new(token.typ, val, String::new(), token.pos[0]),
+            OpType::Exit    => Op::new(token.typ, 0, String::new(), token.pos[0])
         });
     }
 
@@ -156,38 +160,38 @@ fn compile(path: &str, program: Vec<Op>) -> Result<String> {
 "\
 segment .text
 dump:
-        mov r9, -3689348814741910323
-        sub rsp, 40
-        mov BYTE [rsp+31], 10
-        lea rcx, [rsp+30]
+\tmov r9, -3689348814741910323
+\tsub rsp, 40
+\tmov BYTE [rsp+31], 10
+\tlea rcx, [rsp+30]
 .L2:
-        mov rax, rdi
-        lea r8, [rsp+32]
-        mul r9
-        mov rax, rdi
-        sub r8, rcx
-        shr rdx, 3
-        lea rsi, [rdx+rdx*4]
-        add rsi, rsi
-        sub rax, rsi
-        add eax, 48
-        mov BYTE [rcx], al
-        mov rax, rdi
-        mov rdi, rdx
-        mov rdx, rcx
-        sub rcx, 1
-        cmp rax, 9
-        ja  .L2
-        lea rax, [rsp+32]
-        mov edi, 1
-        sub rdx, rax
-        xor eax, eax
-        lea rsi, [rsp+32+rdx]
-        mov rdx, r8
-        mov rax, 1
-        syscall
-        add rsp, 40
-        ret
+\tmov rax, rdi
+\tlea r8, [rsp+32]
+\tmul r9
+\tmov rax, rdi
+\tsub r8, rcx
+\tshr rdx, 3
+\tlea rsi, [rdx+rdx*4]
+\tadd rsi, rsi
+\tsub rax, rsi
+\tadd eax, 48
+\tmov BYTE [rcx], al
+\tmov rax, rdi
+\tmov rdi, rdx
+\tmov rdx, rcx
+\tsub rcx, 1
+\tcmp rax, 9
+\tja  .L2
+\tlea rax, [rsp+32]
+\tmov edi, 1
+\tsub rdx, rax
+\txor eax, eax
+\tlea rsi, [rsp+32+rdx]
+\tmov rdx, r8
+\tmov rax, 1
+\tsyscall
+\tadd rsp, 40
+\tret
 global _start
 _start:
 ";
@@ -219,14 +223,18 @@ _start:
                                                       \tcall dump\n"), false),
 
             OpType::Jump     => write(path, &format!("\tjmp line{}\n", op.value), false),
+
+            OpType::Exit     => write(path, &format!("\tjmp exit\n"), false),
                                                     
         };
     }
     let end = 
 "
-        mov rax, 60
-        mov rbx, 0
-        syscall
+\tpush 0
+exit:
+\tmov rax, 60
+\tpop rbx
+\tsyscall
 ";
 
     write(path, end, false);
@@ -246,7 +254,9 @@ fn run_command(command: &str) {
 }
 
 fn main() {
-    let tokens = lexer("examples/infinite.ogul");
+    let args: Vec<String> = env::args().collect();
+    
+    let tokens = lexer(&args[1]);
     let program = parse(tokens);
 
     compile("out.asm", program).expect("Something went wrong");
