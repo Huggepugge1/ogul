@@ -14,6 +14,7 @@ enum OpType {
     Dump,
     Jump,
     Exit,
+    Else,
     BlockStart,
     BlockEnd,
     IsEq,
@@ -29,6 +30,8 @@ struct Token {
     pos: [usize; 2],
 }
 
+#[derive(Debug)]
+#[derive(Clone)]
 struct Op {
     typ: OpType,
     value: i64,
@@ -86,16 +89,17 @@ fn lexer(path: &str) -> Vec<Token> {
                 "+"    => tokens.push(Token::new(OpType::Plus, token.clone(), [pos[1], pos[2]])),
                 "-"    => tokens.push(Token::new(OpType::Minus, token.clone(), [pos[1], pos[2]])),
                 "dump" => tokens.push(Token::new(OpType::Dump, token.clone(), [pos[1], pos[2]])),
-                "jmp"  => tokens.push(Token::new(OpType::Jump, token.clone(), [pos[1], pos[2]])),
+                "jump" => tokens.push(Token::new(OpType::Jump, token.clone(), [pos[1], pos[2]])),
                 "exit" => tokens.push(Token::new(OpType::Exit, token.clone(), [pos[1], pos[2]])),
                 "{"    => tokens.push(Token::new(OpType::BlockStart, token.clone(), [pos[1], pos[2]])),
                 "}"    => tokens.push(Token::new(OpType::BlockEnd, token.clone(), [pos[1], pos[2]])),
                 "if"   => (),
+                "else" => tokens.push(Token::new(OpType::Else, token.clone(), [pos[1], pos[2]])),
                 "=="   => tokens.push(Token::new(OpType::IsEq, token.clone(), [pos[1], pos[2]])),
                 "<"    => tokens.push(Token::new(OpType::LT, token.clone(), [pos[1], pos[2]])),
                 ">"    => tokens.push(Token::new(OpType::GT, token.clone(), [pos[1], pos[2]])),
                 _      => {
-                    eprint!("{token} is not defined");
+                    eprintln!("{token} is not defined\n");
                     exit(1);
                 },
             }
@@ -120,7 +124,7 @@ fn get_block_end(mut tokens: Vec<Token>) -> Vec<Token> {
             stack.push((token, index));
         } else if token.typ == OpType::BlockEnd {
             if stack.len() == 0 {
-                eprint!("{pos}: Block end (\"}}\") does not have a corresponding start");
+                eprintln!("{pos}: Block end (\"}}\") does not have a corresponding start");
                 exit(1);
             } else {
                 let (mut curr_token, curr_token_index) = stack.pop().unwrap();
@@ -132,7 +136,7 @@ fn get_block_end(mut tokens: Vec<Token>) -> Vec<Token> {
 
     for (token, _) in stack {
         let pos = format!("{0}:{1}", token.pos[0], token.pos[1]);
-        eprint!("{pos}: Block start (\"{{\") does not have a corresponding end");
+        eprintln!("{pos}: Block start (\"{{\") does not have a corresponding end");
         exit(1);
     }
 
@@ -150,7 +154,7 @@ fn parse(tokens: Vec<Token>) -> Vec<Op> {
         if &token.typ == &OpType::Jump && &tokens[index - 1].typ == &OpType::PushInt {
             val = operations.pop().unwrap().value;
         } else if &token.typ == &OpType::Jump {
-            println!("{pos}: \"jump\" requires a line number as a positive integer");
+            eprintln!("{pos}: \"jump\" requires a line number as a positive integer");
         }
         
         operations.push(match token.typ {
@@ -164,6 +168,7 @@ fn parse(tokens: Vec<Token>) -> Vec<Op> {
             OpType::Dump       => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::Jump       => Op::new(token.typ, val, String::new(), token.pos[0]),
             OpType::Exit       => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Else       => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::BlockStart => Op::new(token.typ, token.value
                                           .parse::<i64>()
                                           .unwrap()
@@ -185,7 +190,7 @@ fn write(path: &str, content: &str, start: bool) {
         match std::fs::write(path, content) {
             Ok(_) => return,
             Err(_) => {
-                eprint!("could not write to file");
+                eprintln!("could not write to file");
                 exit(1);
             },
         }
@@ -240,10 +245,10 @@ _start:
     write(path, start, true);
 
     let mut line: usize = 0;
-    for (index, op) in program.into_iter().enumerate() {
-        if line != op.line {
-            line = op.line;
+    for (index, op) in program.clone().into_iter().enumerate() {
+        while line != op.line {
             write(path, &format!("line{line}:\n"), false);
+            line += 1;
         }
 
         write(path, &format!("op{index}:\n"), false);
@@ -261,17 +266,25 @@ _start:
                                                       \tpush rax\n"), false),
             
             OpType::Dump       => write(path, &format!("\tpop rdi\n\
-                                                      \tcall dump\n"), false),
+                                                        \tcall dump\n"), false),
 
             OpType::Jump       => write(path, &format!("\tjmp line{}\n", op.value), false),
 
             OpType::Exit       => write(path, &format!("\tjmp exit\n"), false),
 
+            OpType::Else       => write(path, &format!("\ttest rax, rax\n\
+                                                        \tjz else{0}\n\
+                                                        \tpush 0\n\
+                                                        \tjmp op{1}\n\
+                                                        else{0}:\n\
+                                                        \tpush 1\n", index, program[index + 1].value), false),
+
             OpType::BlockStart => write(path, &format!("\tpop rax\n\
+                                                        \tpush rax\n\
                                                         \ttest rax, rax\n\
                                                         \tjz op{}\n", op.value), false),
 
-            OpType::BlockEnd   => continue,
+            OpType::BlockEnd   => write(path, &format!("\tpop rax\n"), false),
             
             OpType::IsEq       => write(path, &format!("\tpop rbx\n\
                                                         \tpop rax\n\
