@@ -4,16 +4,18 @@ use std::process::{exit, Command};
 use std::io::Write;
 
 #[derive(Debug)]
+#[derive(PartialEq)]
+#[derive(Clone)]
 enum OpType {
     PushInt,
     Plus,
     Minus,
     Dump,
     Jump,
-    Label,
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 struct Token {
     typ: OpType,
     value: String,
@@ -64,7 +66,7 @@ fn lexer(path: &str) -> Vec<Token> {
                 c = content.chars().nth(pos[0]).unwrap();
             }
             tokens.push(Token::new(OpType::PushInt, token.clone(), [pos[1], pos[2]]));
-            pos[1] += token.len();
+            pos[2] += token.len();
             token = String::new();
             
         } else if c == '+' {
@@ -95,8 +97,8 @@ fn lexer(path: &str) -> Vec<Token> {
         } else {
             pos[0] += 1;
             if c == '\n' {
-                pos[1]  = 0;
-                pos[2] += 1;
+                pos[2]  = 0;
+                pos[1] += 1;
             }
         }
     }
@@ -106,19 +108,27 @@ fn lexer(path: &str) -> Vec<Token> {
 fn parse(tokens: Vec<Token>) -> Vec<Op> {
     let mut operations: Vec<Op> = Vec::new();
 
-    for (index, token) in tokens.into_iter().enumerate() {
+    for (index, token) in tokens.clone().into_iter().enumerate() {
         let pos = format!("{0}:{1}", token.pos[0], token.pos[1]);
         let value = &token.value;
+        let mut val = 0;
+
+        if &token.typ == &OpType::Jump && &tokens[index - 1].typ == &OpType::PushInt {
+            val = operations.pop().unwrap().value;
+        } else if &token.typ == &OpType::Jump {
+            println!("{pos}: \"jump\" requires a line number as a positive integer");
+        }
+        
         operations.push(match token.typ {
             OpType::PushInt => Op::new(token.typ, token.value
                                        .parse::<i64>()
                                        .expect(&format!("{pos}: {value} is not a valid integer"))
-                                       , String::new()),
+                                       , String::new(), token.pos[0]),
 
-            OpType::Plus    => Op::new(token.typ, 0, String::new()),
-            OpType::Minus   => Op::new(token.typ, 0, String::new()),
-            OpType::Dump    => Op::new(token.typ, 0, String::new()),
-            OpType::Jump    => Op::new(token.typ, 0, String::new()),
+            OpType::Plus    => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Minus   => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Dump    => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Jump    => Op::new(token.typ, val, String::new(), token.pos[0])
         });
     }
 
@@ -184,7 +194,13 @@ _start:
 
     write(path, start, true);
 
+    let mut line: usize = 0;
     for (index, op) in program.into_iter().enumerate() {
+        if line != op.line {
+            line = op.line;
+            write(path, &format!("line{line}:\n"), false);
+        }
+
         write(path, &format!("op{index}:\n"), false);
         match op.typ {
             OpType::PushInt => write(path, &format!("\tpush {}\n", op.value), false),
@@ -202,8 +218,7 @@ _start:
             OpType::Dump     => write(path, &format!("\tpop rdi\n\
                                                       \tcall dump\n"), false),
 
-            OpType::Jump     => write(path, &format!("\tpop rdi\n\
-                                                      \tjmp {}", op.value), false),
+            OpType::Jump     => write(path, &format!("\tjmp line{}\n", op.value), false),
                                                     
         };
     }
@@ -227,11 +242,11 @@ fn run_command(command: &str) {
         .arg(command)
         .output()
         .expect(&format!("failed to execute command {command}"));
-    println!("output: {output:?}", output=output.stdout);
+    println!("output: {output:?}");
 }
 
 fn main() {
-    let tokens = lexer("examples/dump.ogul");
+    let tokens = lexer("examples/infinite.ogul");
     let program = parse(tokens);
 
     compile("out.asm", program).expect("Something went wrong");

@@ -34,6 +34,7 @@ dump:
         ret
 global _start
 _start:
+line1:
 op0:
 	push 34
 op1:
@@ -46,18 +47,9 @@ op2:
 op3:
 	pop rdi
 	call dump
+line2:
 op4:
-	push 500
-op5:
-	push 80
-op6:
-	pop rbx
-	pop rax
-	sub rax, rbx
-	push rax
-op7:
-	pop rdi
-	call dump
+	jmp line1
 
         mov rax, 60
         mov rbx, 0
