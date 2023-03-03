@@ -1,0 +1,15 @@
+if 0 0 == {
+    1 dump
+}
+
+if 0 1 == {
+    2 dump
+}
+
+if 0 6 < {
+    3 dump
+}
+
+if 0 1 > {
+    4 dump
+}

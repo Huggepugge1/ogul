@@ -14,6 +14,11 @@ enum OpType {
     Dump,
     Jump,
     Exit,
+    BlockStart,
+    BlockEnd,
+    IsEq,
+    LT,
+    GT,
 }
 
 #[derive(Debug)]
@@ -81,6 +86,16 @@ fn lexer(path: &str) -> Vec<Token> {
             pos[0] += 1;
             pos[2] += 1;
 
+        } else if c == '{' {
+            tokens.push(Token::new(OpType::BlockStart, token.clone(), [pos[1], pos[2]]));
+            pos[0] += 1;
+            pos[2] += 1;
+
+        } else if c == '}' {
+            tokens.push(Token::new(OpType::BlockEnd, token.clone(), [pos[1], pos[2]]));
+            pos[0] += 1;
+            pos[2] += 1;
+
         } else if !c.is_whitespace() {
             while !c.is_whitespace() {
                 token += &c.to_string();
@@ -91,10 +106,14 @@ fn lexer(path: &str) -> Vec<Token> {
                 "dump" => tokens.push(Token::new(OpType::Dump, token.clone(), [pos[1], pos[2]])),
                 "jmp"  => tokens.push(Token::new(OpType::Jump, token.clone(), [pos[1], pos[2]])),
                 "exit" => tokens.push(Token::new(OpType::Exit, token.clone(), [pos[1], pos[2]])),
+                "if"   => (),
+                "=="   => tokens.push(Token::new(OpType::IsEq, token.clone(), [pos[1], pos[2]])),
+                "<"    => tokens.push(Token::new(OpType::LT, token.clone(), [pos[1], pos[2]])),
+                ">"    => tokens.push(Token::new(OpType::GT, token.clone(), [pos[1], pos[2]])),
                 _      => {
-                    eprint!("{token} not defined");
+                    eprint!("{token} is not defined");
                     exit(1);
-                }
+                },
             }
             token = String::new();
         } else {
@@ -105,6 +124,34 @@ fn lexer(path: &str) -> Vec<Token> {
             }
         }
     }
+    tokens
+}
+
+fn get_block_end(mut tokens: Vec<Token>) -> Vec<Token> {
+    let mut stack: Vec<(Token, usize)> = Vec::new();
+
+    for (index, token) in tokens.clone().into_iter().enumerate() {
+        let pos = format!("{0}:{1}", token.pos[0], token.pos[1]);
+        if token.typ == OpType::BlockStart {
+            stack.push((token, index));
+        } else if token.typ == OpType::BlockEnd {
+            if stack.len() == 0 {
+                eprint!("{pos}: Block end (\"}}\") does not have a corresponding start");
+                exit(1);
+            } else {
+                let (mut curr_token, curr_token_index) = stack.pop().unwrap();
+                curr_token.value = index.to_string();
+                tokens[curr_token_index] = curr_token;
+            }
+        }
+    }
+
+    for (token, _) in stack {
+        let pos = format!("{0}:{1}", token.pos[0], token.pos[1]);
+        eprint!("{pos}: Block start (\"{{\") does not have a corresponding end");
+        exit(1);
+    }
+
     tokens
 }
 
@@ -123,16 +170,26 @@ fn parse(tokens: Vec<Token>) -> Vec<Op> {
         }
         
         operations.push(match token.typ {
-            OpType::PushInt => Op::new(token.typ, token.value
+            OpType::PushInt    => Op::new(token.typ, token.value
                                        .parse::<i64>()
                                        .expect(&format!("{pos}: {value} is not a valid integer"))
                                        , String::new(), token.pos[0]),
 
-            OpType::Plus    => Op::new(token.typ, 0, String::new(), token.pos[0]),
-            OpType::Minus   => Op::new(token.typ, 0, String::new(), token.pos[0]),
-            OpType::Dump    => Op::new(token.typ, 0, String::new(), token.pos[0]),
-            OpType::Jump    => Op::new(token.typ, val, String::new(), token.pos[0]),
-            OpType::Exit    => Op::new(token.typ, 0, String::new(), token.pos[0])
+            OpType::Plus       => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Minus      => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Dump       => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Jump       => Op::new(token.typ, val, String::new(), token.pos[0]),
+            OpType::Exit       => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::BlockStart => Op::new(token.typ, token.value
+                                          .parse::<i64>()
+                                          .unwrap()
+                                          , String::new(), token.pos[0]),
+
+            OpType::BlockEnd   => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::IsEq       => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::LT         => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::GT         => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            
         });
     }
 
@@ -207,25 +264,60 @@ _start:
 
         write(path, &format!("op{index}:\n"), false);
         match op.typ {
-            OpType::PushInt => write(path, &format!("\tpush {}\n", op.value), false),
+            OpType::PushInt    => write(path, &format!("\tpush {}\n", op.value), false),
 
-            OpType::Plus     => write(path, &format!("\tpop rbx\n\
+            OpType::Plus       => write(path, &format!("\tpop rbx\n\
                                                       \tpop rax\n\
                                                       \tadd rax, rbx\n\
                                                       \tpush rax\n"), false),
 
-            OpType::Minus    => write(path, &format!("\tpop rbx\n\
+            OpType::Minus      => write(path, &format!("\tpop rbx\n\
                                                       \tpop rax\n\
                                                       \tsub rax, rbx\n\
                                                       \tpush rax\n"), false),
             
-            OpType::Dump     => write(path, &format!("\tpop rdi\n\
+            OpType::Dump       => write(path, &format!("\tpop rdi\n\
                                                       \tcall dump\n"), false),
 
-            OpType::Jump     => write(path, &format!("\tjmp line{}\n", op.value), false),
+            OpType::Jump       => write(path, &format!("\tjmp line{}\n", op.value), false),
 
-            OpType::Exit     => write(path, &format!("\tjmp exit\n"), false),
+            OpType::Exit       => write(path, &format!("\tjmp exit\n"), false),
+
+            OpType::BlockStart => write(path, &format!("\tpop rax\n\
+                                                        \ttest rax, rax\n\
+                                                        \tjz op{}\n", op.value), false),
+
+            OpType::BlockEnd   => continue,
+            
+            OpType::IsEq       => write(path, &format!("\tpop rbx\n\
+                                                        \tpop rax\n\
+                                                        \tcmp rax, rbx\n\
+                                                        \tjne false{index}\n\
+                                                        \tpush 1\n\
+                                                        \tjmp end{index}\n\
+                                                        false{index}:\n\
+                                                        \tpush 0\n\
+                                                        end{index}:\n"), false),
+ 
+            OpType::LT         => write(path, &format!("\tpop rbx\n\
+                                                        \tpop rax\n\
+                                                        \tcmp rax, rbx\n\
+                                                        \tjge false{index}\n\
+                                                        \tpush 1\n\
+                                                        \tjmp end{index}\n\
+                                                        false{index}:\n\
+                                                        \tpush 0\n\
+                                                        end{index}:\n"), false),
                                                     
+            OpType::GT         => write(path, &format!("\tpop rbx\n\
+                                                        \tpop rax\n\
+                                                        \tcmp rax, rbx\n\
+                                                        \tjle false{index}\n\
+                                                        \tpush 1\n\
+                                                        \tjmp end{index}\n\
+                                                        false{index}:\n\
+                                                        \tpush 0\n\
+                                                        end{index}:\n"), false),
         };
     }
     let end = 
@@ -256,7 +348,7 @@ fn run_command(command: &str) {
 fn main() {
     let args: Vec<String> = env::args().collect();
     
-    let tokens = lexer(&args[1]);
+    let tokens = get_block_end(lexer(&args[1]));
     let program = parse(tokens);
 
     compile("out.asm", program).expect("Something went wrong");
