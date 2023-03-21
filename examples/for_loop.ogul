@@ -1,0 +1,6 @@
+0
+if dup 10 < {
+    69 dump
+    drop 1 +
+    2 jump
+}

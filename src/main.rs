@@ -8,6 +8,7 @@ use std::env;
 #[derive(PartialEq)]
 #[derive(Clone)]
 enum OpType {
+    Empty,
     PushInt,
     Plus,
     Minus,
@@ -20,6 +21,9 @@ enum OpType {
     IsEq,
     LT,
     GT,
+    Swap,
+    Duplicate,
+    Dropp,
 }
 
 #[derive(Debug)]
@@ -58,6 +62,15 @@ impl Op {
             line: line,
         }
     }
+
+    pub fn empty(line: usize) -> Op {
+        Op {
+            typ: OpType::Empty,
+            value: 0,
+            string_value: String::new(),
+            line: line,
+        }
+    }
 }
 
 fn lexer(path: &str) -> Vec<Token> {
@@ -76,7 +89,7 @@ fn lexer(path: &str) -> Vec<Token> {
                 c = content.chars().nth(pos[0]).unwrap();
             }
             tokens.push(Token::new(OpType::PushInt, token.clone(), [pos[1], pos[2]]));
-            pos[2] += token.len();
+            pos[2] += token.len() + 1;
             token = String::new();
             
         } else if !c.is_whitespace() {
@@ -98,6 +111,9 @@ fn lexer(path: &str) -> Vec<Token> {
                 "=="   => tokens.push(Token::new(OpType::IsEq, token.clone(), [pos[1], pos[2]])),
                 "<"    => tokens.push(Token::new(OpType::LT, token.clone(), [pos[1], pos[2]])),
                 ">"    => tokens.push(Token::new(OpType::GT, token.clone(), [pos[1], pos[2]])),
+                "swap" => tokens.push(Token::new(OpType::Swap, token.clone(), [pos[1], pos[2]])),
+                "dup"  => tokens.push(Token::new(OpType::Duplicate, token.clone(), [pos[1], pos[2]])),
+                "drop" => tokens.push(Token::new(OpType::Dropp, token.clone(), [pos[1], pos[2]])), 
                 _      => {
                     eprintln!("{token} is not defined\n");
                     exit(1);
@@ -107,7 +123,7 @@ fn lexer(path: &str) -> Vec<Token> {
         } else {
             pos[0] += 1;
             if c == '\n' {
-                pos[2]  = 0;
+                pos[2]  = 1;
                 pos[1] += 1;
             }
         }
@@ -119,6 +135,7 @@ fn get_block_end(mut tokens: Vec<Token>) -> Vec<Token> {
     let mut stack: Vec<(Token, usize)> = Vec::new();
 
     for (index, token) in tokens.clone().into_iter().enumerate() {
+        println!("{0};{1:?}", index, token);
         let pos = format!("{0}:{1}", token.pos[0], token.pos[1]);
         if token.typ == OpType::BlockStart {
             stack.push((token, index));
@@ -153,6 +170,7 @@ fn parse(tokens: Vec<Token>) -> Vec<Op> {
 
         if &token.typ == &OpType::Jump && &tokens[index - 1].typ == &OpType::PushInt {
             val = operations.pop().unwrap().value;
+            operations.push(Op::empty(token.pos[0]))
         } else if &token.typ == &OpType::Jump {
             eprintln!("{pos}: \"jump\" requires a line number as a positive integer");
         }
@@ -163,6 +181,7 @@ fn parse(tokens: Vec<Token>) -> Vec<Op> {
                                        .expect(&format!("{pos}: {value} is not a valid integer"))
                                        , String::new(), token.pos[0]),
 
+            OpType::Empty      => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::Plus       => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::Minus      => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::Dump       => Op::new(token.typ, 0, String::new(), token.pos[0]),
@@ -178,6 +197,9 @@ fn parse(tokens: Vec<Token>) -> Vec<Op> {
             OpType::IsEq       => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::LT         => Op::new(token.typ, 0, String::new(), token.pos[0]),
             OpType::GT         => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Swap       => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Duplicate  => Op::new(token.typ, 0, String::new(), token.pos[0]),
+            OpType::Dropp      => Op::new(token.typ, 0, String::new(), token.pos[0]),
             
         });
     }
@@ -247,12 +269,13 @@ _start:
     let mut line: usize = 0;
     for (index, op) in program.clone().into_iter().enumerate() {
         while line != op.line {
-            write(path, &format!("line{line}:\n"), false);
             line += 1;
+            write(path, &format!("line{line}:\n"), false);
         }
 
         write(path, &format!("op{index}:\n"), false);
         match op.typ {
+            OpType::Empty      => (),
             OpType::PushInt    => write(path, &format!("\tpush {}\n", op.value), false),
 
             OpType::Plus       => write(path, &format!("\tpop rbx\n\
@@ -315,6 +338,17 @@ _start:
                                                         false{index}:\n\
                                                         \tpush 0\n\
                                                         end{index}:\n"), false),
+
+            OpType::Swap       => write(path, &format!("\tpop rbx\n\
+                                                        \tpop rax\n\
+                                                        \tpush rbx\n\
+                                                        \tpush rax\n"), false),
+
+            OpType::Duplicate  => write(path, &format!("\tpop rax\n\
+                                                        \tpush rax\n\
+                                                        \tpush rax\n"), false),
+
+            OpType::Dropp      => write(path, &format!("\tpop rax\n"), false),
         };
     }
     let end = 
